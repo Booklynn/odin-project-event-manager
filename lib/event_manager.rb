@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 require 'csv'
 require 'google/apis/civicinfo_v2'
 require 'erb'
@@ -9,23 +11,32 @@ end
 
 def clean_phone_number(home_phone)
   home_phone.to_s.gsub!(/\D/, '')
-  home_phone.length == 10 ? home_phone 
-  : (home_phone.length == 11 && home_phone.start_with?('1') ? home_phone[1..] : '')
+  if home_phone.length == 10
+    home_phone
+  else
+    home_phone.length == 11 && home_phone.start_with?('1') ? home_phone[1..] : ''
+  end
 end
 
 def legislators_by_zipcode(zipcode)
+  civic_info = initialize_civic_info
+  fetch_representatives(civic_info, zipcode)
+end
+
+def initialize_civic_info
   civic_info = Google::Apis::CivicinfoV2::CivicInfoService.new
   civic_info.key = File.read('secret.key').strip
+  civic_info
+end
 
-  begin
-    civic_info.representative_info_by_address(
-      address: zipcode,
-      levels: 'country',
-      roles: ['legislatorUpperBody', 'legislatorLowerBody']
-    ).officials
-  rescue
-    'You can find your representatives by visiting www.commoncause.org/take-action/find-elected-officials'
-  end
+def fetch_representatives(civic_info, zipcode)
+  civic_info.representative_info_by_address(
+    address: zipcode,
+    levels: 'country',
+    roles: %w[legislatorUpperBody legislatorLowerBody]
+  ).officials
+rescue StandardError
+  'You can find your representatives by visiting www.commoncause.org/take-action/find-elected-officials'
 end
 
 def save_thank_you_letter(id, form_letter)
@@ -39,10 +50,10 @@ def save_thank_you_letter(id, form_letter)
 end
 
 def check_peak_hours(reg_dates)
-  hours = reg_dates.map { |date| Time.strptime(date, "%m/%d/%y %H:%M").hour}
+  hours = reg_dates.map { |date| Time.strptime(date, '%m/%d/%y %H:%M').hour }
   peak_hour_count = hours.tally.max_by { |_, count| count }[1]
   peak_hours = hours.tally.select { |_, count| count == peak_hour_count }.keys
-  return "The peak registration hours are #{peak_hours.join(", ")}"
+  "The peak registration hours are #{peak_hours.join(', ')}"
 end
 
 csv_file_path = 'event_attendees.csv'
@@ -50,17 +61,17 @@ erb_file_path = 'form_letter.erb'
 
 puts 'Event Manager Initialized!'
 
-if File.exist?(csv_file_path) and File.exist?(erb_file_path)
+if File.exist?(csv_file_path) && File.exist?(erb_file_path)
   contents = CSV.open(
-    csv_file_path, 
-    headers: true, 
+    csv_file_path,
+    headers: true,
     header_converters: :symbol
   )
 
   template_letter = File.read('form_letter.erb')
   erb_template = ERB.new template_letter
 
-  reg_dates = Array.new
+  reg_dates = []
 
   contents.each do |row|
     id = row[0]
@@ -79,6 +90,5 @@ if File.exist?(csv_file_path) and File.exist?(erb_file_path)
   puts peak_hours
 
 else
-  puts "File not found"
+  puts 'File not found'
 end
-
