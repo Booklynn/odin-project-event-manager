@@ -1,6 +1,7 @@
 require 'csv'
 require 'google/apis/civicinfo_v2'
 require 'erb'
+require 'time'
 
 def clean_zipcode(zipcode)
   zipcode.to_s.rjust(5, '0')[0..4]
@@ -37,6 +38,13 @@ def save_thank_you_letter(id, form_letter)
   end
 end
 
+def check_peak_hours(reg_dates)
+  hours = reg_dates.map { |date| Time.strptime(date, "%m/%d/%y %H:%M").hour}
+  peak_hour_count = hours.tally.max_by { |_, count| count }[1]
+  peak_hours = hours.tally.select { |_, count| count == peak_hour_count }.keys
+  return "The peak registration hours are #{peak_hours.join(", ")}"
+end
+
 csv_file_path = 'event_attendees.csv'
 erb_file_path = 'form_letter.erb'
 
@@ -52,6 +60,8 @@ if File.exist?(csv_file_path) and File.exist?(erb_file_path)
   template_letter = File.read('form_letter.erb')
   erb_template = ERB.new template_letter
 
+  reg_dates = Array.new
+
   contents.each do |row|
     id = row[0]
     name = row[:first_name]
@@ -61,7 +71,12 @@ if File.exist?(csv_file_path) and File.exist?(erb_file_path)
     form_letter = erb_template.result(binding)
 
     save_thank_you_letter(id, form_letter)
+
+    reg_dates.push(row[:regdate])
   end
+
+  peak_hours = check_peak_hours(reg_dates)
+  puts peak_hours
 
 else
   puts "File not found"
