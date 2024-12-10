@@ -49,11 +49,26 @@ def save_thank_you_letter(id, form_letter)
   end
 end
 
-def check_peak_hours(reg_dates)
+def get_peak_hours(reg_dates)
   hours = reg_dates.map { |date| Time.strptime(date, '%m/%d/%y %H:%M').hour }
   peak_hour_count = hours.tally.max_by { |_, count| count }[1]
-  peak_hours = hours.tally.select { |_, count| count == peak_hour_count }.keys
-  "The peak registration hours are #{peak_hours.join(', ')}"
+  hours.tally.select { |_, count| count == peak_hour_count }.keys
+end
+
+def display_peak_hours(reg_dates)
+  peak_hours = get_peak_hours(reg_dates)
+  puts "The peak registration hours: #{peak_hours.join(', ')}"
+end
+
+def get_most_days_of_week(reg_dates)
+  days = reg_dates.map { |date| Date.strptime(date, '%m/%d/%y').wday }
+  most_day_count = days.tally.max_by { |_, count| count }[1]
+  days.tally.select { |_, count| count == most_day_count }.keys.map { |wday| Date::DAYNAMES[wday] }
+end
+
+def display_peak_days(reg_dates)
+  most_days = get_most_days_of_week(reg_dates)
+  puts "The days of the week most people register: #{most_days.join(', ')}"
 end
 
 csv_file_path = 'event_attendees.csv'
@@ -78,16 +93,15 @@ if File.exist?(csv_file_path) && File.exist?(erb_file_path)
     name = row[:first_name]
     zipcode = clean_zipcode(row[:zipcode])
     legislators = legislators_by_zipcode(zipcode)
+    reg_dates.push(row[:regdate])
 
     form_letter = erb_template.result(binding)
 
     save_thank_you_letter(id, form_letter)
-
-    reg_dates.push(row[:regdate])
   end
 
-  peak_hours = check_peak_hours(reg_dates)
-  puts peak_hours
+  display_peak_hours(reg_dates)
+  display_peak_days(reg_dates)
 
 else
   puts 'File not found'
